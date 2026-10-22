@@ -222,3 +222,5 @@ __marimo__/
 
 # DAta 
 data*
+# Données persistantes de PostgreSQL (volume Docker)
+data/postgres/

@@ -80,8 +80,16 @@ def generer_fichier_csv_idempotent(batch_id: int, dossier_cible: str = ".") -> P
 
     return chemin_fichier
 
+def generer_tous_les_csv(nb_batches: int = 60, dossier_cible: str = "./data/raw") -> list[Path]:
+    """Génère les fichiers CSV des batchs 0 à nb_batches - 1."""
+    Path(dossier_cible).mkdir(parents=True, exist_ok=True)
+    return [
+        generer_fichier_csv_idempotent(batch_id=i, dossier_cible=dossier_cible)
+        for i in range(nb_batches)
+    ]
+
+
 if __name__ == "__main__":
-    # Test d'idempotence : le batch 42 produira toujours le même fichier
-    for i in range(60):
-        fichier = generer_fichier_csv_idempotent(batch_id=i, dossier_cible= "./data/raw" )
+    # Test d'idempotence : un même batch produira toujours le même fichier
+    for fichier in generer_tous_les_csv():
         print(f"Fichier généré : {fichier}")
