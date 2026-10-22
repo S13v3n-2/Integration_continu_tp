@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10) -> list[list[str]]:
+def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10):
     """Génère des transactions déterministes avec pays et montants pseudo-aléatoires."""
     
-    # Instance dédiée pour garantir la reproductibilité selon le batch_id
+    # Instance dédiée pour garantir la reproductibilité selon le batch_id, on fixe le random
     rng = random.Random(batch_id)
     
     # Listes de référence pour les tirages pseudo-aléatoires
@@ -22,7 +22,7 @@ def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10) -> list[lis
         "CH": "UBS",
         "GB": "Barclays"
     }
-
+    # Initialisation de la liste de données
     donnees = []
     timestamp_base = 1767225600 + (batch_id * 60)
     
@@ -37,6 +37,7 @@ def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10) -> list[lis
         banque_src = BANQUES_PAR_PAYS[pays_src]
         montant = round(rng.uniform(10.0, 10000.0), 2)
         
+        # Création de la transaction
         transaction = [
             horodatage,
             f"{pays_src}7612345678901234567890{i:03d}",  # IBAN cohérent avec le pays
@@ -53,6 +54,7 @@ def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10) -> list[lis
 
 def generer_fichier_csv_idempotent(batch_id: int, dossier_cible: str = ".") -> Path:
     """Crée un fichier CSV de façon idempotente."""
+    # Initialisation de l'entete du csv
     entetes = [
         "datetime_transaction",
         "iban_org",
@@ -63,14 +65,17 @@ def generer_fichier_csv_idempotent(batch_id: int, dossier_cible: str = ".") -> P
         "montant"
     ]
     
-    nom_fichier = f"data/raw/transactions_batch_{batch_id:04d}.csv"
+    nom_fichier = f"transactions_batch_{batch_id:04d}.csv"
     chemin_fichier = Path(dossier_cible) / nom_fichier
 
     lignes = generer_donnees_transactions(batch_id=batch_id, nb_lignes=10)
 
     with open(chemin_fichier, mode="w", newline="", encoding="utf-8") as fichier:
+        # Creation du fichier 
         writer = csv.writer(fichier)
+        # Creation de l'entetes du csv
         writer.writerow(entetes)
+        # Creation des lignes du CSV
         writer.writerows(lignes)
 
     return chemin_fichier
@@ -78,5 +83,5 @@ def generer_fichier_csv_idempotent(batch_id: int, dossier_cible: str = ".") -> P
 if __name__ == "__main__":
     # Test d'idempotence : le batch 42 produira toujours le même fichier
     for i in range(60):
-        fichier = generer_fichier_csv_idempotent(batch_id=i)
+        fichier = generer_fichier_csv_idempotent(batch_id=i, dossier_cible= "./data/raw" )
         print(f"Fichier généré : {fichier}")

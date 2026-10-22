@@ -4,6 +4,14 @@ from collections import defaultdict
 from decimal import Decimal
 
 def read_transactions(path: str="data/raw/transactions_batch_*.csv"):
+    """_summary_
+    Lecture de tout les csv de transactions
+    Args:
+        path (str, optional): Chemin vers les fichiers. Defaults to "data/raw/transactions_batch_*.csv".
+
+    Returns:
+        DataFrame: DataFrame Pandas refroupes tout les transations de tout les fichiers
+    """
     # 1. Récupère la liste de tous les fichiers CSV correspondant au motif (pattern)
     fichiers_csv = glob.glob(path)
 
@@ -14,6 +22,7 @@ def read_transactions(path: str="data/raw/transactions_batch_*.csv"):
     df = pd.concat(liste_df, ignore_index=True)
 
     return df
+
 
 def calculer_somme_par_iban_origine(df_transactions: pd.DataFrame) -> pd.DataFrame:
     """Calcule la somme des montants envoyés par IBAN d'origine à partir d'un DataFrame.
@@ -42,6 +51,12 @@ def calculer_somme_par_iban_origine(df_transactions: pd.DataFrame) -> pd.DataFra
 
 
 def calculer_somme_par_banque_src(df_transactions: pd.DataFrame) -> pd.DataFrame:
+    """Calcule la somme des montants envoyés par banque source à partir d'un DataFrame.
+    Args:
+        df_transactions: DataFrame Pandas contenant au moins 'banque_src' et 'montant'.
+    Returns:
+        DataFrame Pandas trié par montant décroissant.
+    """
     if df_transactions.empty:
         return pd.DataFrame(columns=["banque_src", "montant_total"])
 
@@ -60,6 +75,12 @@ def calculer_somme_par_banque_src(df_transactions: pd.DataFrame) -> pd.DataFrame
 
 
 def calculer_somme_par_iban_dest(df_transactions: pd.DataFrame) -> pd.DataFrame:
+    """Calcule la somme des montants envoyés par IBAN destination à partir d'un DataFrame.
+    Args:
+        df_transactions: DataFrame Pandas contenant au moins 'iban_dest' et 'montant'.
+    Returns:
+        DataFrame Pandas trié par montant décroissant.
+    """
     if df_transactions.empty:
         return pd.DataFrame(columns=["iban_dest", "montant_total"])
 
@@ -78,14 +99,19 @@ def calculer_somme_par_iban_dest(df_transactions: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculer_flag_transaction_5000(df_transactions: pd.DataFrame) -> pd.DataFrame:
+    """ Filtre les transactions supérieure a 5K
+    Args:
+        df_transactions: DataFrame Pandas contenant au moins 'montant'.
+    Returns:
+        DataFrame Pandas trié par montant décroissant.
+    """
     if df_transactions.empty:
         return pd.DataFrame(columns=["montant"])
 
-    # 1. Agrégation par 'iban_dest' et somme de la colonne 'montant'
+    # 1. Filtre les transactions avec un montant superieur a 5K
     df_transactions_5000 = df_transactions.query("montant > 5000.00")
 
-    # 3. Tri du plus grand au plus petit donneur d'ordre
-    return df_transactions_5000
+    return df_transactions_5000.sort_values(by="montant", ascending=False)
 
 
 if __name__ == "__main__":
