@@ -30,7 +30,9 @@ services:
       retries: 10
 
   worker:
-    build: .
+    build:
+      context: .
+      target: worker
     restart: unless-stopped
     environment:
       POSTGRES_HOST: db

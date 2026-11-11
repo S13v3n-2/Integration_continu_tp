@@ -2,6 +2,5 @@
 .git
 .github
 data
-tests
 .env
 __pycache__
