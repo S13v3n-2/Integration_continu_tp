@@ -42,13 +42,13 @@ generation_images.py -+                                       ^
 
 ## Lancer le projet
 
-Un fichier `.env` est necessaire a la racine :
+Un fichier `.env` est necessaire a la racine. Il se cree a partir de l'exemple fourni, puis on adapte les valeurs :
 
 ```
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=transactions
+cp .env.example .env
 ```
+
+Les variables sont decrites dans `.env.example` (base, S3, simulation d'un echec d'insertion).
 
 ```
 pip install -r requirements-dev.txt
