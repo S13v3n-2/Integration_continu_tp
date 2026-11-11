@@ -23,6 +23,38 @@ services:
       timeout: 5s
       retries: 5
 
+  s3:
+    image: chrislusf/seaweedfs:latest
+    restart: no
+    command: server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64
+    ports:
+      - "8333:8333"
+    volumes:
+      - ./data/s3:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # lance les tests dans un conteneur (tesseract inclus) : docker compose --profile tests run --rm tests
+  tests:
+    profiles: ["tests"]
+    build:
+      context: .
+      target: test
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      S3_ENDPOINT: http://s3:8333
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+
   adminer:
     image: adminer:6.1.2
     restart: no

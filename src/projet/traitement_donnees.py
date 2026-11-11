@@ -1,136 +1,77 @@
 import glob
+import io
+
 import pandas as pd
-from collections import defaultdict
-from decimal import Decimal
 
-def read_transactions(path: str="data/raw/transactions_batch_*.csv"):
-    """_summary_
-    Lecture de tout les csv de transactions
-    Args:
-        path (str, optional): Chemin vers les fichiers. Defaults to "data/raw/transactions_batch_*.csv".
+SEUIL_FLAG = 5000.00
 
-    Returns:
-        DataFrame: DataFrame Pandas refroupes tout les transations de tout les fichiers
-    """
-    # 1. Récupère la liste de tous les fichiers CSV correspondant au motif (pattern)
-    fichiers_csv = glob.glob(path)
 
-    # 2. Lit chaque fichier CSV et les stocke dans une liste de DataFrames
-    liste_df = [pd.read_csv(fichier, sep=",") for fichier in fichiers_csv]
+# Chargement des données (effets de bord : lecture de fichiers)
 
-    # 3. Combine tous les DataFrames en un seul grand DataFrame
-    df = pd.concat(liste_df, ignore_index=True)
+def read_transactions(path: str = "data/raw/transactions_batch_*.csv") -> pd.DataFrame:
+    """Lit tous les CSV qui correspondent au motif et les regroupe dans un DataFrame."""
+    fichiers_csv = sorted(glob.glob(path))
+    if not fichiers_csv:
+        return pd.DataFrame()
+    return pd.concat([pd.read_csv(f) for f in fichiers_csv], ignore_index=True)
 
-    return df
+
+def lire_transactions_bytes(contenu: bytes) -> pd.DataFrame:
+    """Construit un DataFrame à partir du contenu brut d'un CSV (ex: récupéré sur S3)."""
+    return pd.read_csv(io.BytesIO(contenu))
+
+
+def lire_transactions_fichier(nom: str, contenu: bytes) -> pd.DataFrame:
+    """Choisit le chargement selon l'extension : ocr pour les images, csv sinon."""
+    if nom.lower().endswith(".png"):
+        from .ocr import lire_transactions_image
+
+        return lire_transactions_image(contenu)
+    return lire_transactions_bytes(contenu)
+
+
+# Fonctions de traitement (pures : pas d'IO, le DataFrame d'entrée n'est pas modifié)
+
+def _somme_par(df_transactions: pd.DataFrame, cle: str) -> pd.DataFrame:
+    if df_transactions.empty:
+        return pd.DataFrame(columns=[cle, "montant_total"])
+
+    df_sommes = (
+        df_transactions.groupby(cle, as_index=False)["montant"]
+        .sum()
+        .rename(columns={"montant": "montant_total"})
+    )
+    df_sommes["montant_total"] = df_sommes["montant_total"].round(2)
+    return df_sommes.sort_values(by="montant_total", ascending=False)
 
 
 def calculer_somme_par_iban_origine(df_transactions: pd.DataFrame) -> pd.DataFrame:
-    """Calcule la somme des montants envoyés par IBAN d'origine à partir d'un DataFrame.
-    Args:
-        df_transactions: DataFrame Pandas contenant au moins 'iban_org' et 'montant'.
-    Returns:
-        DataFrame Pandas trié par montant décroissant.
-    """
-    
-    if df_transactions.empty:
-        return pd.DataFrame(columns=["iban_org", "montant_total"])
-
-    # 1. Agrégation par 'iban_org' et somme de la colonne 'montant'
-    df_sommes = (
-        df_transactions.groupby("iban_org", as_index=False)["montant"]
-        .sum()
-        .rename(columns={"montant": "montant_total"})
-    )
-
-    # 2. Arrondi propre à 2 décimales pour les montants
-    df_sommes["montant_total"] = df_sommes["montant_total"].round(2)
-
-    # 3. Tri du plus grand au plus petit donneur d'ordre
-    return df_sommes.sort_values(by="montant_total", ascending=False)
-
+    """Somme des montants envoyés par iban d'origine, triée par montant décroissant."""
+    return _somme_par(df_transactions, "iban_org")
 
 
 def calculer_somme_par_banque_src(df_transactions: pd.DataFrame) -> pd.DataFrame:
-    """Calcule la somme des montants envoyés par banque source à partir d'un DataFrame.
-    Args:
-        df_transactions: DataFrame Pandas contenant au moins 'banque_src' et 'montant'.
-    Returns:
-        DataFrame Pandas trié par montant décroissant.
-    """
-    if df_transactions.empty:
-        return pd.DataFrame(columns=["banque_src", "montant_total"])
-
-    # 1. Agrégation par 'banque_src' et somme de la colonne 'montant'
-    df_sommes = (
-        df_transactions.groupby("banque_src", as_index=False)["montant"]
-        .sum()
-        .rename(columns={"montant": "montant_total"})
-    )
-
-    # 2. Arrondi propre à 2 décimales pour les montants
-    df_sommes["montant_total"] = df_sommes["montant_total"].round(2)
-
-    # 3. Tri du plus grand au plus petit donneur d'ordre
-    return df_sommes.sort_values(by="montant_total", ascending=False)
+    """Somme des montants envoyés par banque source, triée par montant décroissant."""
+    return _somme_par(df_transactions, "banque_src")
 
 
 def calculer_somme_par_iban_dest(df_transactions: pd.DataFrame) -> pd.DataFrame:
-    """Calcule la somme des montants envoyés par IBAN destination à partir d'un DataFrame.
-    Args:
-        df_transactions: DataFrame Pandas contenant au moins 'iban_dest' et 'montant'.
-    Returns:
-        DataFrame Pandas trié par montant décroissant.
-    """
-    if df_transactions.empty:
-        return pd.DataFrame(columns=["iban_dest", "montant_total"])
-
-    # 1. Agrégation par 'iban_dest' et somme de la colonne 'montant'
-    df_sommes = (
-        df_transactions.groupby("iban_dest", as_index=False)["montant"]
-        .sum()
-        .rename(columns={"montant": "montant_total"})
-    )
-
-    # 2. Arrondi propre à 2 décimales pour les montants
-    df_sommes["montant_total"] = df_sommes["montant_total"].round(2)
-
-    # 3. Tri du plus grand au plus petit donneur d'ordre
-    return df_sommes.sort_values(by="montant_total", ascending=False)
+    """Somme des montants reçus par iban destinataire, triée par montant décroissant."""
+    return _somme_par(df_transactions, "iban_dest")
 
 
 def calculer_flag_transaction_5000(df_transactions: pd.DataFrame) -> pd.DataFrame:
-    """ Filtre les transactions supérieure a 5K
-    Args:
-        df_transactions: DataFrame Pandas contenant au moins 'montant'.
-    Returns:
-        DataFrame Pandas trié par montant décroissant.
-    """
+    """Garde les transactions strictement au dessus de 5000, triées par montant décroissant."""
     if df_transactions.empty:
-        return pd.DataFrame(columns=["montant"])
+        return pd.DataFrame(columns=df_transactions.columns)
 
-    # 1. Filtre les transactions avec un montant superieur a 5K
-    df_transactions_5000 = df_transactions.query("montant > 5000.00")
-
-    return df_transactions_5000.sort_values(by="montant", ascending=False)
+    df_flag = df_transactions[df_transactions["montant"] > SEUIL_FLAG]
+    return df_flag.sort_values(by="montant", ascending=False)
 
 
 if __name__ == "__main__":
-    # 1. Chargement de toutes les transactions
-    df_raw = read_transactions("data/raw/transactions_batch_*.csv")
-
-    # 2. Calcul des agrégations
-    df_totaux_iban_org = calculer_somme_par_iban_origine(df_raw)
-    
-    # 3. Calcul des montants envoyés par banque source
-    df_totaux_bank_org = calculer_somme_par_banque_src(df_raw)
-    
-    df_totaux_iban_dest = calculer_somme_par_iban_dest(df_raw)
-    
-    df_transactions_5000 = calculer_flag_transaction_5000(df_raw)
-
-    # Affichage du résultat
-    
-    print("df_totaux_iban_org", df_totaux_iban_org.head())
-    print("df_totaux_bank_org", df_totaux_bank_org.head())
-    print("df_totaux_iban_dest", df_totaux_iban_dest.head())
-    print("df_transactions_5000", df_transactions_5000.head())
+    df_raw = read_transactions()
+    print(calculer_somme_par_iban_origine(df_raw).head())
+    print(calculer_somme_par_banque_src(df_raw).head())
+    print(calculer_somme_par_iban_dest(df_raw).head())
+    print(calculer_flag_transaction_5000(df_raw).head())
