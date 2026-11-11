@@ -1,4 +1,5 @@
 """Tests d'intégration : demandent Postgres et le S3 local (docker compose up -d db s3)."""
+import shutil
 import uuid
 
 import psycopg
@@ -6,6 +7,7 @@ import pytest
 
 from src.projet.config import config_db
 from src.projet.generation_csv import generer_tous_les_csv
+from src.projet.generation_images import generer_image_transactions
 from src.projet.stockage_s3 import assurer_bucket, creer_client, envoyer_fichier, lister_cles
 from src.projet.traitement_donnees import (
     calculer_flag_transaction_5000,
@@ -15,6 +17,7 @@ from src.projet.traitement_donnees import (
     read_transactions,
 )
 from src.projet.writing_postgres import connecter, traiter_nouveaux_fichiers
+from tests.test_ocr import transactions_attendues
 
 pytestmark = pytest.mark.integration
 
@@ -125,3 +128,28 @@ def test_echec_definitif_ne_laisse_rien_en_base(base_temporaire, csv_dans_s3, mo
 
     assert lire_table("SELECT 1 FROM fichiers_traites") == []
     assert lire_table("SELECT 1 FROM totaux_iban_org") == []
+
+
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract absent, a lancer dans le conteneur")
+def test_image_lue_par_ocr_puis_inseree(base_temporaire, bucket, tmp_path):
+    client, nom = bucket
+    envoyer_fichier(client, nom, generer_image_transactions(batch_id=0, dossier_cible=str(tmp_path)))
+    attendu = transactions_attendues(batch_id=0)
+
+    assert traiter_nouveaux_fichiers(client, nom) == (1, 0)
+
+    totaux = calculer_somme_par_iban_origine(attendu)
+    en_base = {k: float(v) for k, v in lire_table("SELECT iban_org, montant_total FROM totaux_iban_org")}
+    assert en_base == pytest.approx(dict(zip(totaux["iban_org"], totaux["montant_total"])))
+    assert traiter_nouveaux_fichiers(client, nom) == (0, 1)
+
+
+def test_image_illisible_ne_bloque_pas_les_autres_fichiers(base_temporaire, csv_dans_s3):
+    client, nom, _ = csv_dans_s3
+    client.put_object(Bucket=nom, Key="transactions_image_9999.png", Body=b"pas une image")
+
+    traites, _ = traiter_nouveaux_fichiers(client, nom)
+
+    assert traites == NB_FICHIERS
+    noms = {ligne[0] for ligne in lire_table("SELECT nom_fichier FROM fichiers_traites")}
+    assert "transactions_image_9999.png" not in noms

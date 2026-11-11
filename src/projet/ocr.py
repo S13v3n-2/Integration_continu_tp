@@ -13,11 +13,14 @@ COLONNES = [
     "montant",
 ]
 
+# tesseract coupe parfois un long iban en deux : on accepte des morceaux separes par des espaces
+IBAN = r"[A-Z]{2}[0-9OIl]+(?: [0-9OIl]+)*"
+
 # date heure, iban, pays, banque (mots libres), iban, pays, montant
 MOTIF_LIGNE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
-    r"([A-Z]{2}[0-9OIl]+)\s+([A-Z]{2})\s+(.+?)\s+"
-    r"([A-Z]{2}[0-9OIl]+)\s+([A-Z]{2})\s+"
+    rf"({IBAN})\s+([A-Z]{{2}})\s+(.+?)\s+"
+    rf"({IBAN})\s+([A-Z]{{2}})\s+"
     r"(\d+[.,]\d{2})$"
 )
 
@@ -26,8 +29,8 @@ CONFUSIONS = str.maketrans({"O": "0", "I": "1", "l": "1"})
 
 
 def corriger_iban(iban: str) -> str:
-    """Garde le code pays et remet des chiffres dans le reste de l'iban."""
-    return iban[:2] + iban[2:].translate(CONFUSIONS)
+    """Garde le code pays, retire les espaces et remet des chiffres dans le reste de l'iban."""
+    return iban[:2] + iban[2:].replace(" ", "").translate(CONFUSIONS)
 
 
 def extraire_texte(contenu: bytes) -> str:

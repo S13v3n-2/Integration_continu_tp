@@ -21,6 +21,15 @@ def lire_transactions_bytes(contenu: bytes) -> pd.DataFrame:
     return pd.read_csv(io.BytesIO(contenu))
 
 
+def lire_transactions_fichier(nom: str, contenu: bytes) -> pd.DataFrame:
+    """Choisit le chargement selon l'extension : ocr pour les images, csv sinon."""
+    if nom.lower().endswith(".png"):
+        from .ocr import lire_transactions_image
+
+        return lire_transactions_image(contenu)
+    return lire_transactions_bytes(contenu)
+
+
 # Fonctions de traitement (pures : pas d'IO, le DataFrame d'entrée n'est pas modifié)
 
 def _somme_par(df_transactions: pd.DataFrame, cle: str) -> pd.DataFrame:

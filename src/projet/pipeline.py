@@ -8,6 +8,7 @@ import psycopg
 
 from .config import BASE_DIR, DOSSIER_RAW, config_s3
 from .generation_csv import generer_tous_les_csv
+from .generation_images import generer_toutes_les_images
 from .stockage_s3 import assurer_bucket, creer_client, envoyer_fichier
 from .writing_postgres import traiter_nouveaux_fichiers
 
@@ -50,14 +51,15 @@ def lancer_pipeline_complete(avec_docker: bool = True):
     if avec_docker:
         lancer_services()
 
-    # 2. génération des CSV puis envoi dans le S3
+    # 2. génération des CSV et des images puis envoi dans le S3
     fichiers = generer_tous_les_csv(dossier_cible=str(DOSSIER_RAW))
+    fichiers += generer_toutes_les_images(dossier_cible=str(DOSSIER_RAW))
     cfg = config_s3()
     client = creer_client()
     assurer_bucket(client, cfg["bucket"])
     for fichier in fichiers:
         envoyer_fichier(client, cfg["bucket"], fichier)
-    print(f"{len(fichiers)} fichiers CSV envoyés dans le bucket {cfg['bucket']}")
+    print(f"{len(fichiers)} fichiers (csv et images) envoyés dans le bucket {cfg['bucket']}")
 
     # 3. traitement + insertion des fichiers pas encore traités
     traites, ignores = traiter_depuis_s3()

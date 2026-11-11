@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from collections.abc import Callable
 
 import psycopg
@@ -11,8 +12,12 @@ from .traitement_donnees import (
     calculer_somme_par_banque_src,
     calculer_somme_par_iban_dest,
     calculer_somme_par_iban_origine,
-    lire_transactions_bytes,
+    lire_transactions_fichier,
 )
+
+logger = logging.getLogger(__name__)
+
+EXTENSIONS_TRAITEES = (".csv", ".png")
 
 # Schéma des tables : les tables sont persistantes (CREATE TABLE IF NOT EXISTS).
 # Les tables de totaux ont une clé primaire métier pour permettre l'upsert cumulatif.
@@ -140,7 +145,7 @@ def inserer_resultats(
     donc un fichier n'est jamais compté deux fois.
     avant_commit sert à simuler un bug d'insertion dans les tests.
     """
-    df_raw = lire_transactions_bytes(contenu)
+    df_raw = lire_transactions_fichier(nom_fichier, contenu)
     hash_fichier = calculer_hash(contenu)
 
     with connecter() as conn, conn.transaction(), conn.cursor() as cursor:
@@ -176,14 +181,19 @@ def traiter_nouveaux_fichiers(
 
     traites, ignores = 0, 0
     for cle in lister_cles(client, bucket):
-        if not cle.endswith(".csv"):
+        if not cle.lower().endswith(EXTENSIONS_TRAITEES):
             continue
         if cle in deja_traites:
             ignores += 1
             continue
         contenu = telecharger_contenu(client, bucket, cle)
-        if inserer_resultats(cle, contenu, avant_commit):
-            traites += 1
-        else:
-            ignores += 1
+        try:
+            if inserer_resultats(cle, contenu, avant_commit):
+                traites += 1
+            else:
+                ignores += 1
+        except (ValueError, OSError):
+            # image illisible ou tesseract absent : on passe au fichier suivant,
+            # le fichier n'est pas marque comme traite donc il sera retente
+            logger.exception("fichier %s non traite", cle)
     return traites, ignores
