@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      S3_ENDPOINT: http://localhost:8333
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Installation des dependances
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Demarrage du S3 local
+        run: |
+          docker run -d --name s3 -p 8333:8333 chrislusf/seaweedfs:latest \
+            server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8333 && exit 0
+            sleep 2
+          done
+          docker logs s3
+          exit 1
+
+      - name: Tests unitaires
+        run: pytest -m "not integration"
+
+      - name: Tests d'integration
+        run: pytest -m integration
