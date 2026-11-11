@@ -1,6 +1,6 @@
 import csv
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -27,7 +27,7 @@ def generer_donnees_transactions(batch_id: int, nb_lignes: int = 10):
     timestamp_base = 1767225600 + (batch_id * 60)
     
     for i in range(nb_lignes):
-        dt_ligne = datetime.fromtimestamp(timestamp_base + i, tz=timezone.utc)
+        dt_ligne = datetime.fromtimestamp(timestamp_base + i, tz=UTC)
         horodatage = dt_ligne.strftime("%Y-%m-%d %H:%M:%S")
         
         # Tirage pseudo-aléatoire du pays source et destination
