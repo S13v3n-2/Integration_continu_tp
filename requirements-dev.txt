@@ -17,9 +17,15 @@ jmespath==1.1.0
 numpy==2.5.4
     # via pandas
 packaging==26.3
-    # via pytest
+    # via
+    #   pytesseract
+    #   pytest
 pandas==3.1.0
     # via integration-continu-tp (pyproject.toml)
+pillow==13.0.0
+    # via
+    #   integration-continu-tp (pyproject.toml)
+    #   pytesseract
 pluggy==1.7.0
     # via pytest
 psycopg==3.3.6
@@ -28,6 +34,8 @@ psycopg-binary==3.3.6
     # via psycopg
 pygments==2.21.0
     # via pytest
+pytesseract==0.3.13
+    # via integration-continu-tp (pyproject.toml)
 pytest==9.1.1
     # via integration-continu-tp (pyproject.toml:dev)
 python-dateutil==2.9.0.post0
