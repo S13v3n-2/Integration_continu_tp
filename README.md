@@ -6,10 +6,15 @@ traitement avec des fonctions pures (pandas) puis insertion dans PostgreSQL.
 ## Architecture
 
 ```
-generation_csv.py -> S3 (bucket transactions) -> traitement_donnees.py -> writing_postgres.py -> PostgreSQL
+generation_csv.py ----+
+                      +-> S3 (bucket transactions) -> traitement_donnees.py -> writing_postgres.py -> PostgreSQL
+generation_images.py -+                                       ^
+                                                          ocr.py (images)
 ```
 
 - `generation_csv.py` : CSV deterministes (graine = numero de batch), 10 transactions par fichier.
+- `generation_images.py` : images PNG de transactions (meme format de ligne que les CSV).
+- `ocr.py` : lecture d'une image avec tesseract puis analyse du texte en transactions (analyse pure, tolerante aux erreurs de lecture).
 - `stockage_s3.py` : envoi, liste et telechargement des fichiers (boto3), retry sur la recuperation.
 - `traitement_donnees.py` : chargement d'un cote, fonctions pures de l'autre (somme par iban origine,
   par banque source, par iban destinataire, flag des montants > 5000).
@@ -54,6 +59,15 @@ La commande demarre Postgres et le S3 avec docker compose, genere les CSV, les e
 puis traite ceux qui ne l'ont pas deja ete. Relancer la commande ne retraite rien.
 Option `--sans-docker` si les services tournent deja.
 
+## OCR (niveau 3)
+
+Les fichiers `.png` du bucket sont lus avec tesseract puis traites comme les CSV : memes totaux,
+meme idempotence. Une image illisible est signalee dans les logs, ne bloque pas les autres
+fichiers et sera retentee au passage suivant.
+
+Tesseract n'est pas installe sur la machine : il est dans l'image Docker (`Dockerfile`), le worker
+et les tests l'utilisent depuis le conteneur.
+
 ## Tests
 
 ```
@@ -61,6 +75,12 @@ ruff check src tests
 pytest -m "not integration"        # unitaires
 docker compose up -d db s3 --wait
 pytest -m integration              # necessite postgres et le S3
+```
+
+Les tests qui utilisent l'OCR sont ignores hors conteneur. Pour tout lancer, tesseract inclus :
+
+```
+docker compose --profile tests run --rm --build tests
 ```
 
 Les tests d'integration creent une base et un bucket temporaires, les donnees locales ne sont pas touchees.
@@ -85,7 +105,7 @@ Les totaux en base restent corrects (pas de double comptage), verifie par
 
 ## CI / CD
 
-- `.github/workflows/ci.yml` : lint, tests unitaires puis tests d'integration (services Postgres et SeaweedFS).
+- `.github/workflows/ci.yml` : lint, tests unitaires puis tests d'integration (services Postgres et SeaweedFS, tesseract installe sur le runner).
 - `.github/workflows/cd.yml` : apres une CI verte sur `main`, copie les fichiers sur la VM par SSH
   et lance `compose.prod.yml` (S3, base, worker).
   Secrets a definir : `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
