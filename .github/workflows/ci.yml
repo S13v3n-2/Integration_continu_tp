@@ -37,6 +37,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
+      - name: Installation de tesseract (ocr)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+
       - name: Installation des dependances
         run: pip install -r requirements-dev.txt
 
