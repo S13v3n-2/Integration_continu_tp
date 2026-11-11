@@ -23,6 +23,20 @@ services:
       timeout: 5s
       retries: 5
 
+  s3:
+    image: chrislusf/seaweedfs:latest
+    restart: no
+    command: server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64
+    ports:
+      - "8333:8333"
+    volumes:
+      - ./data/s3:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   adminer:
     image: adminer:6.1.2
     restart: no
